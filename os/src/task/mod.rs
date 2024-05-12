@@ -14,9 +14,10 @@ mod switch;
 #[allow(clippy::module_inception)]
 mod task;
 
-use crate::config::MAX_APP_NUM;
+use crate::config::{MAX_APP_NUM, MAX_SYSCALL_NUM};
 use crate::loader::{get_num_app, init_app_cx};
 use crate::sync::UPSafeCell;
+use crate::timer::get_time_ms;
 use lazy_static::*;
 use switch::__switch;
 pub use task::{TaskControlBlock, TaskStatus};
@@ -33,17 +34,13 @@ pub use context::TaskContext;
 /// borrowing checks to runtime. You can see examples on how to use `inner` in
 /// existing functions on `TaskManager`.
 pub struct TaskManager {
-    /// total number of tasks
     num_app: usize,
-    /// use inner value to get mutable access
     inner: UPSafeCell<TaskManagerInner>,
 }
 
 /// Inner of Task Manager
 pub struct TaskManagerInner {
-    /// task list
     tasks: [TaskControlBlock; MAX_APP_NUM],
-    /// id of current `Running` task
     current_task: usize,
 }
 
@@ -54,6 +51,8 @@ lazy_static! {
         let mut tasks = [TaskControlBlock {
             task_cx: TaskContext::zero_init(),
             task_status: TaskStatus::UnInit,
+            syscall_times: [0; MAX_SYSCALL_NUM],
+            start_time: get_time_ms(),
         }; MAX_APP_NUM];
         for (i, task) in tasks.iter_mut().enumerate() {
             task.task_cx = TaskContext::goto_restore(init_app_cx(i));
@@ -72,6 +71,29 @@ lazy_static! {
 }
 
 impl TaskManager {
+    fn get_current_task_id(&self) -> usize {
+        let inner = self.inner.exclusive_access();
+        inner.current_task
+    }
+
+    fn get_current_task_block(&self) -> TaskControlBlock {
+        self.get_task_block(self.get_current_task_id())
+    }
+
+    fn get_task_block(&self, task_id: usize) -> TaskControlBlock {
+        let inner = self.inner.exclusive_access();
+        inner.tasks[task_id]
+    }
+
+    fn set_current_task_block(&self, block: TaskControlBlock){
+        self.set_task_block(self.get_current_task_id(), block)
+    }
+
+    fn set_task_block(&self, task_id: usize, block: TaskControlBlock) {
+        let mut inner = self.inner.exclusive_access();
+        inner.tasks[task_id] = block;
+    }
+
     /// Run the first task in task list.
     ///
     /// Generally, the first task in task list is an idle task (we call it zero process later).
@@ -168,4 +190,14 @@ pub fn suspend_current_and_run_next() {
 pub fn exit_current_and_run_next() {
     mark_current_exited();
     run_next_task();
+}
+
+/// Get current running task
+pub fn get_current_task_block() -> TaskControlBlock {
+    TASK_MANAGER.get_current_task_block()
+}
+
+/// Set task block of current task
+pub fn set_current_task_block(block: TaskControlBlock) {
+    TASK_MANAGER.set_current_task_block(block);
 }

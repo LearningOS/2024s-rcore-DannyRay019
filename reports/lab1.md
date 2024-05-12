@@ -1,0 +1,5 @@
+把sys_task_info函数给完善了，同时也完善了TaskControlBlock结构体，以及taskmanger的函数接口
+刚开始那个inner总是出错，后来在taskmanger定义函数，然后在sys_task_info函数里面调用过来就好了
+那个系统调用有点难度，听了别人的指点，我是想在syscall函数里面去加上每次的调用最终问题得到解决。
+花了好几天看文档，自己看源代码然后自己写一个小模块都费劲
+不过很有成就感。
