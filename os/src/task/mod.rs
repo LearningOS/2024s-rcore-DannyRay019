@@ -202,3 +202,10 @@ pub fn current_trap_cx() -> &'static mut TrapContext {
 pub fn change_program_brk(size: i32) -> Option<usize> {
     TASK_MANAGER.change_current_program_brk(size)
 }
+
+/// Use the current task's inner fields.
+pub fn use_current_task_inner(f: impl FnOnce(&mut TaskControlBlock)) {
+    let mut inner = TASK_MANAGER.inner.exclusive_access();
+    let current = inner.current_task;
+    f(&mut inner.tasks[current]);
+}

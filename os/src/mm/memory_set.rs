@@ -35,8 +35,10 @@ lazy_static! {
 }
 /// address space
 pub struct MemorySet {
-    page_table: PageTable,
-    areas: Vec<MapArea>,
+    /// the page table
+    pub page_table: PageTable,
+    /// the memory areas
+    pub areas: Vec<MapArea>,
 }
 
 impl MemorySet {
@@ -62,6 +64,26 @@ impl MemorySet {
             MapArea::new(start_va, end_va, MapType::Framed, permission),
             None,
         );
+    }
+    /// Find MapArea include in the virtual address range
+    pub fn find_area_include_range(&self, range: VPNRange) -> Option<&MapArea> {
+        self.areas
+            .iter()
+            .find(|area| area.vpn_range.contains_any(range))
+    }
+    /// Find MapArea include in the virtual address range, and unmap them
+    pub fn unmap_area_include_range(&mut self, range: VPNRange) -> isize {
+        let area_idx = self
+            .areas
+            .iter()
+            .position(|area| area.vpn_range.contains_all(range));
+        if let Some(idx) = area_idx {
+            self.areas[idx].unmap(&mut self.page_table);
+            self.areas.remove(idx);
+            0
+        } else {
+            -1
+        }
     }
     fn push(&mut self, mut map_area: MapArea, data: Option<&[u8]>) {
         map_area.map(&mut self.page_table);
