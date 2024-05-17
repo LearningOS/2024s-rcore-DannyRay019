@@ -1,6 +1,9 @@
 //! Implementation of physical and virtual address and page number.
-use super::PageTableEntry;
-use crate::config::{PAGE_SIZE, PAGE_SIZE_BITS};
+use super::{PageTable, PageTableEntry};
+use crate::{
+    config::{PAGE_SIZE, PAGE_SIZE_BITS},
+    task::current_user_token,
+};
 use core::fmt::{self, Debug, Formatter};
 /// physical address
 const PA_WIDTH_SV39: usize = 56;
@@ -113,6 +116,14 @@ impl VirtAddr {
     pub fn aligned(&self) -> bool {
         self.page_offset() == 0
     }
+
+    /// Translate the virtual address to physical address in current user space page table
+    pub fn find_phys_addr_user_space(&self) -> Option<PhysAddr> {
+        PageTable::from_token(current_user_token())
+            .translate(self.floor())
+            .map(|pte| pte.ppn())
+            .map(|ppn| PhysAddr::new(ppn, self.page_offset()))
+    }
 }
 impl From<VirtAddr> for VirtPageNum {
     fn from(v: VirtAddr) -> Self {
@@ -174,6 +185,11 @@ impl PhysAddr {
     pub fn get_mut<T>(&self) -> &'static mut T {
         unsafe { (self.0 as *mut T).as_mut().unwrap() }
     }
+
+    /// Create a new physical address from a physical page number and an address offset
+    pub fn new(ppn: PhysPageNum, offset: usize) -> Self {
+        PhysAddr(ppn.0 << 12 | offset)
+    }
 }
 impl PhysPageNum {
     /// Get the reference of page table(array of ptes)
@@ -226,6 +242,14 @@ where
     }
     pub fn get_end(&self) -> T {
         self.r
+    }
+
+    pub fn contains_any(&self, other: SimpleRange<T>) -> bool {
+        self.l < other.r && self.r > other.l
+    }
+
+    pub fn contains_all(&self, other: SimpleRange<T>) -> bool {
+        self.l <= other.l && self.r >= other.r
     }
 }
 impl<T> IntoIterator for SimpleRange<T>
