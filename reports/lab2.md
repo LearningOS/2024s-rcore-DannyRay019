@@ -1,26 +1,17 @@
 功能实现
-把sys_task_info函数给完善了，同时也完善了TaskControlBlock结构体，以及taskmanger的函数接口 刚开始那个inner总是出错，后来在taskmanger定义函数，然后在sys_task_info函数里面调用过来就好了 那个系统调用有点难度，听了别人的指点，我是想在syscall函数里面去加上每次的调用最终问题得到解决。 花了好几天看文档，自己看源代码然后自己写一个小模块都费劲 不过很有成就感。
+这一次的代码量，尤其是页表管理那块，实在是太多了，本来文档里面也没有多少，但是正式打开那些文件的时候去捋清楚这些函数之间的关系，然后把它们整合起来，在大脑中有一个形象，都有点吃力，本来想一天拿下的，但是很明显不够，我就花几天给自己接受的时间，可算看懂了。然后去作题，实现了对 sys_get_time 和 sys_task_info 两个 system call 的重写，转换虚拟地址到物理地址后还要存入相关任务or时间的信息，同时也实现了mmap和munmap映射功能，把当前任务从虚拟内存映射到物理内存中，从起始地址开始，包括长度和权限都有，同时还要在页面中添加上一些函数的实现。
 
 简答作业
 第 1 题
-出错行为：
-ch2b_bad_address: [kernel] PageFault in application, bad addr = 0x0, bad instruction = 0x804003ac, kernel killed it.
-ch2b_bad_instructions: [kernel] IllegalInstruction in application, kernel killed it.
-ch2b_bad_register: [kernel] IllegalInstruction in application, kernel killed it.
-
-rustsbi 版本：
-[rustsbi] RustSBI version 0.3.0-alpha.2, adapting to RISC-V SBI v1.0.0
-[rustsbi] Implementation     : RustSBI-QEMU Version 0.2.0-alpha.2
-[rustsbi] Platform Name      : riscv-virtio,qemu
+SV39 页表项的组成包括以下几个部分：物理页号（PPN）、有效位（V）、可读（R）、可写（W）、可执行（X）、用户态访问位（U）、全局位（G）、访问位（A）、脏位（D）。其中，标志位从低位到高位分别用于表示页面的属性，而物理页号则用于指示页面在物理内存中的位置。
 
 第 2 题
-1.a0 代表 __restore 前一个函数的返回值，__restore 可用于在中断结束和系统调用结束时恢复用户寄存器状态。
-2.上述代码特殊处理了三个寄存器，它们分别是 sstatus, sepc 和 sscratch，他们均用于存储系统中断的相关信息，用于在中断结束后正确返回用户代码。其中 sstatus 是系统状态寄存器，sepc 是程序计数器寄存器，sscratch 用于保存用户栈地址。
-3.x2 是（用户）栈指针寄存器，该指针已被保存到 sscratch；x4 是线程指针寄存器，目前还尚未使用，因此不需要保存。
-4.sp 将指向内核栈指针，sscratch 将指向用户栈指针。
-5.状态切换发生在 csrw sstatus, t0 指令中，该指令将先前保存的（位于用户态的）系统状态信息从 t0 重新恢复到 sstatus，此时程序将从内核态回到用户态。
-6.sp 将指向内核栈指针，sscratch 将指向用户栈指针。
-7.从 U 态进入 S 态是在触发系统调用时，由处理器自动切换的
+缺页可能导致的异常包括 StoreFault、StorePageFault、LoadFault 和 LoadPageFault。相关的重要寄存器包括 sstatus、sepc、sscratch、stval、scause 和 satp，用于存储引发缺页异常的指令地址、具体的异常原因和页表地址等信息。
+Lazy 策略的好处在于可以尽量缩小应用程序使用的主存空间，只有在需要使用某部分代码时才从磁盘读取到主存中。大约占用 20-30 MB 内存，实现 Lazy 策略只需在缺页中断时将数据从磁盘载入到主存，并映射到虚拟页面上，然后结束中断，重新执行指令即可。
+页面失效时，页表项的 V 标志位会被设置为 0，代表页面失效。
+
+第 3 题
+在单页表情况下，更换页表只需要在切换应用时进行即可。同时，通过设置页表项的 U 标志位为 0，可以控制用户态无法访问内核页面。相比之下，单页表操作系统占用的主存更小，不需要频繁清空 TLB，换页也更加方便。在双页表实现下，需要在内核态/用户态切换或者应用切换时更换页表；而对于一个单页表操作系统，则应当在切换应用时更换页表。
 
 荣誉准则
 1.在完成本次实验的过程（含此前学习的过程）中，我曾分别与 以下各位 就（与本次实验相关的）以下方面做过交流，还在代码中对应的位置以注释形式记录了具体的交流对象及内容：
